@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 # Content Understanding feature flag
 CU_ENDPOINT = os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT", "")
 
+# Foundry IQ CU demo feature flag — active when BOTH KB MCP URLs are configured
+FOUNDRY_IQ_MINIMAL_MCP_URL = os.getenv("FOUNDRY_IQ_MINIMAL_MCP_URL", "")
+FOUNDRY_IQ_STANDARD_MCP_URL = os.getenv("FOUNDRY_IQ_STANDARD_MCP_URL", "")
+
 app = FastAPI(title="Fibey Agent Gateway")
 
 app.add_middleware(
@@ -60,14 +64,14 @@ def _sse(event: str, data: dict | str) -> str:
     return f"event: {event}\ndata: {payload}\n\n"
 
 
-async def _run_local(message: str, session_id: str, attachments: list[dict] | None = None, cu_mode: str = "none") -> AsyncGenerator[str, None]:
+async def _run_local(message: str, session_id: str, attachments: list[dict] | None = None, cu_mode: str = "none", foundry_iq_mode: str | None = None) -> AsyncGenerator[str, None]:
     """Run the agent locally and stream SSE events."""
     from fibey.agent.agent import run_agent
 
     session = sessions.setdefault(session_id, {})
 
     try:
-        async for event in run_agent(message, session, attachments=attachments, cu_mode=cu_mode):
+        async for event in run_agent(message, session, attachments=attachments, cu_mode=cu_mode, foundry_iq_mode=foundry_iq_mode):
             if event["type"] == "delta":
                 yield _sse("delta", {"content": event["content"]})
             elif event["type"] == "activity":
@@ -342,10 +346,11 @@ async def chat(request: Request):
     session_id = body.get("session_id", str(uuid.uuid4()))
     attachments = body.get("attachments", None)
     cu_mode = body.get("cu_mode", "none")
+    foundry_iq_mode = body.get("foundry_iq_mode", None)
 
-    logger.info("Gateway mode: %s, message: %s, session: %s, attachments: %s, cu_mode: %s",
+    logger.info("Gateway mode: %s, message: %s, session: %s, attachments: %s, cu_mode: %s, foundry_iq_mode: %s",
                 AGENT_MODE, message[:50], session_id,
-                len(attachments) if attachments else 0, cu_mode)
+                len(attachments) if attachments else 0, cu_mode, foundry_iq_mode)
     
     if AGENT_MODE == "hosted":
         logger.info("Using hosted agent mode")
@@ -355,7 +360,7 @@ async def chat(request: Request):
         generator = _run_containerapp(message, session_id)
     else:
         logger.info("Using local agent mode")
-        generator = _run_local(message, session_id, attachments=attachments, cu_mode=cu_mode)
+        generator = _run_local(message, session_id, attachments=attachments, cu_mode=cu_mode, foundry_iq_mode=foundry_iq_mode)
 
     return StreamingResponse(
         generator,
@@ -385,7 +390,9 @@ async def health():
 async def features():
     """Return feature flags so the UI can conditionally enable capabilities."""
     cu_available = bool(CU_ENDPOINT)
+    foundry_iq_cu_demo = bool(FOUNDRY_IQ_MINIMAL_MCP_URL and FOUNDRY_IQ_STANDARD_MCP_URL)
     return {
         "content_understanding": cu_available,
         "cu_modes": ["none", "basic", "work_order"] if cu_available else ["none"],
+        "foundry_iq_cu_demo": foundry_iq_cu_demo,
     }

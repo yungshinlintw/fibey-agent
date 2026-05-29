@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useChat } from "./hooks/useChat";
 import { useTheme } from "./hooks/useTheme";
-import { fetchFeatures, type CuMode } from "./api/client";
+import { fetchFeatures, type CuMode, type FoundryIqMode } from "./api/client";
 import ChatPanel from "./components/ChatPanel";
 import ActivitySidebar from "./components/ActivitySidebar";
 
@@ -11,13 +11,35 @@ export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
   const [enableAttachments, setEnableAttachments] = useState(false);
   const [cuMode, setCuMode] = useState<CuMode>("none");
+  const [enableFoundryIqCuDemo, setEnableFoundryIqCuDemo] = useState(false);
+  const [foundryIqMode, setFoundryIqMode] = useState<FoundryIqMode>("minimal");
 
   useEffect(() => {
-    fetchFeatures().then((f) => setEnableAttachments(f.content_understanding));
+    let cancelled = false;
+    const load = async () => {
+      // Retry until gateway responds (handles gateway cold start / restart race)
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          const response = await fetch("/api/features");
+          if (cancelled) return;
+          if (response.ok) {
+            const f = await response.json() as import("./api/client").Features;
+            setEnableAttachments(f.content_understanding);
+            setEnableFoundryIqCuDemo(f.foundry_iq_cu_demo);
+            return;
+          }
+        } catch {
+          // gateway not yet ready
+        }
+        if (!cancelled) await new Promise((r) => setTimeout(r, 1500));
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   const handleSend = (text: string, attachments?: import("./api/client").FileAttachment[]) => {
-    send(text, attachments, cuMode);
+    send(text, attachments, cuMode, enableFoundryIqCuDemo ? foundryIqMode : undefined);
   };
 
   return (
@@ -75,6 +97,9 @@ export default function App() {
             enableAttachments={enableAttachments}
             cuMode={cuMode}
             onCuModeChange={setCuMode}
+            enableFoundryIqCuDemo={enableFoundryIqCuDemo}
+            foundryIqMode={foundryIqMode}
+            onFoundryIqModeChange={setFoundryIqMode}
           />
         )}
       </div>

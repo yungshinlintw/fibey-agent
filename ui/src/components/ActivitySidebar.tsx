@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import type { ActivityEvent, CuMode } from "../api/client";
+import type { ActivityEvent, CuMode, FoundryIqMode } from "../api/client";
 
 interface ActivitySidebarProps {
   activities: ActivityEvent[];
@@ -8,6 +8,9 @@ interface ActivitySidebarProps {
   enableAttachments?: boolean;
   cuMode?: CuMode;
   onCuModeChange?: (mode: CuMode) => void;
+  enableFoundryIqCuDemo?: boolean;
+  foundryIqMode?: FoundryIqMode;
+  onFoundryIqModeChange?: (mode: FoundryIqMode) => void;
 }
 
 /** Map raw tool names to friendly display names and icons */
@@ -160,7 +163,7 @@ function getSkillName(activity: ActivityEvent): string | null {
   return match?.[1]?.trim() ?? null;
 }
 
-export default function ActivitySidebar({ activities, isStreaming, onClear, enableAttachments, cuMode = "none", onCuModeChange }: ActivitySidebarProps) {
+export default function ActivitySidebar({ activities, isStreaming, onClear, enableAttachments, cuMode = "none", onCuModeChange, enableFoundryIqCuDemo = false, foundryIqMode = "minimal", onFoundryIqModeChange }: ActivitySidebarProps) {
   const completed = activities.filter((a) => a.status === "complete").length;
   const running = activities.filter((a) => a.status === "running").length;
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -213,6 +216,72 @@ export default function ActivitySidebar({ activities, isStreaming, onClear, enab
         className="absolute left-0 top-0 bottom-0 z-20 w-1 cursor-col-resize hover:bg-blue-400/40 active:bg-blue-500/50"
         onMouseDown={startResize}
       />
+
+      {/* Foundry IQ Ingestion Mode — shown when both KB variants are configured */}
+      {enableFoundryIqCuDemo && (
+        <div className="border-b border-gray-200 dark:border-gray-800">
+          <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+            <span className="material-icons-outlined text-[18px] text-amber-500 dark:text-amber-400">
+              hub
+            </span>
+            <h2 className="text-sm font-semibold">Foundry IQ Ingestion</h2>
+          </div>
+          <div className="flex flex-col gap-1 px-4 py-3">
+            {(
+              [
+                {
+                  mode: "minimal" as FoundryIqMode,
+                  label: "Minimal",
+                  icon: "text_fields",
+                  desc: "Standard text extraction — free",
+                  note: "Tables with empty cells may be misread",
+                },
+                {
+                  mode: "standard" as FoundryIqMode,
+                  label: "Standard (Azure CU)",
+                  icon: "table_chart",
+                  desc: "Content Understanding — advanced OCR",
+                  note: "Accurate table layout, empty-cell aware",
+                },
+              ] as const
+            ).map(({ mode, label, icon, desc, note }) => {
+              const active = foundryIqMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onFoundryIqModeChange?.(mode)}
+                  className={`flex items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                    active
+                      ? "bg-amber-50 ring-1 ring-amber-300 dark:bg-amber-900/20 dark:ring-amber-700"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-800/60"
+                  }`}
+                >
+                  <span className={`material-icons-outlined mt-0.5 text-[16px] shrink-0 ${active ? "text-amber-600 dark:text-amber-400" : "text-gray-400 dark:text-gray-500"}`}>
+                    {icon}
+                  </span>
+                  <div className="min-w-0">
+                    <div className={`text-[12px] font-medium leading-tight ${active ? "text-amber-700 dark:text-amber-300" : "text-gray-700 dark:text-gray-300"}`}>
+                      {label}
+                    </div>
+                    <div className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+                      {desc}
+                    </div>
+                    <div className={`mt-0.5 text-[10px] italic ${active ? "text-amber-600 dark:text-amber-400" : "text-gray-400 dark:text-gray-600"}`}>
+                      {note}
+                    </div>
+                  </div>
+                  {active && (
+                    <span className="material-icons-outlined ml-auto shrink-0 text-[14px] text-amber-500 dark:text-amber-400">
+                      radio_button_checked
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* CU Context Provider — only shown when CU endpoint is configured */}
       {enableAttachments && (

@@ -4,6 +4,7 @@ import {
   type ActivityEvent,
   type FileAttachment,
   type CuMode,
+  type FoundryIqMode,
   sendMessage,
 } from "../api/client";
 
@@ -25,7 +26,7 @@ export function useChat() {
   const sessionIdRef = useRef(crypto.randomUUID());
   const assistantIdRef = useRef<string>("");
 
-  const send = useCallback(async (text: string, attachments?: FileAttachment[], cuMode: CuMode = "none") => {
+  const send = useCallback(async (text: string, attachments?: FileAttachment[], cuMode: CuMode = "none", foundryIqMode?: FoundryIqMode) => {
     if ((!text.trim() && (!attachments || attachments.length === 0)) || isStreaming) return;
 
     const userMsg: ChatMessage = {
@@ -124,7 +125,7 @@ export function useChat() {
       onDone() {
         setIsStreaming(false);
       },
-    }, attachments, cuMode);
+    }, attachments, cuMode, foundryIqMode);
   }, [isStreaming]);
 
   const resetChat = useCallback(async () => {

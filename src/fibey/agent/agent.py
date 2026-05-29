@@ -54,6 +54,12 @@ _SEARCH_API_KEY = os.getenv("AZURE_SEARCH_API_KEY", "")
 # Content Understanding (optional)
 _CU_ENDPOINT = os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT", "")
 
+# Foundry IQ CU demo — two separate KB MCP endpoints (minimal vs standard ingestion)
+_FOUNDRY_IQ_MINIMAL_MCP_URL = os.getenv("FOUNDRY_IQ_MINIMAL_MCP_URL", "")
+_FOUNDRY_IQ_STANDARD_MCP_URL = os.getenv("FOUNDRY_IQ_STANDARD_MCP_URL", "")
+
+_SEARCH_TOKEN_SCOPE = "https://search.azure.com/.default"
+
 
 def _load_system_prompt() -> str:
     """Load the system prompt from markdown file."""
@@ -134,6 +140,48 @@ def _create_toolbox_mcp(credential) -> MCPStreamableHTTPTool | None:
     )
 
 
+def _create_foundry_iq_mcp(credential, foundry_iq_mode: str) -> MCPStreamableHTTPTool | None:
+    """Create a dedicated KB MCP tool for the Foundry IQ CU demo.
+
+    Returns the appropriate MCP tool based on the ingestion mode:
+      "minimal"  → standard text extraction KB (no CU, free tier)
+      "standard" → Azure Content Understanding KB (advanced OCR + table parsing)
+    """
+    url = _FOUNDRY_IQ_MINIMAL_MCP_URL if foundry_iq_mode == "minimal" else _FOUNDRY_IQ_STANDARD_MCP_URL
+    if not url:
+        logger.warning("FOUNDRY_IQ_%s_MCP_URL not configured — Foundry IQ CU demo unavailable", foundry_iq_mode.upper())
+        return None
+
+    # Azure AI Search KB MCP requires api-version for tools/call to work correctly
+    if "api-version" not in url:
+        url = url + ("&" if "?" in url else "?") + "api-version=2024-07-01"
+
+    logger.info("Foundry IQ KB MCP (%s): %s", foundry_iq_mode, url)
+
+    # Azure AI Search MCP uses the Search API key or a Search-scoped bearer token.
+    # Do NOT use the Foundry/AI services token or api-version=v1 (those are Toolbox-specific).
+    if _SEARCH_API_KEY:
+        auth: httpx.Auth = _ToolboxApiKeyAuth(_SEARCH_API_KEY)
+    else:
+        class _SearchAuth(httpx.Auth):
+            def auth_flow(self, request):
+                request.headers["Authorization"] = f"Bearer {credential.get_token(_SEARCH_TOKEN_SCOPE).token}"
+                yield request
+        auth = _SearchAuth()
+
+    auth_http_client = httpx.AsyncClient(
+        auth=auth,
+        timeout=120.0,
+    )
+
+    return MCPStreamableHTTPTool(
+        name=f"foundry_iq_{foundry_iq_mode}",
+        url=url,
+        http_client=auth_http_client,
+        load_prompts=False,
+    )
+
+
 async def knowledge_base_search(query: str, top: int = 5) -> str:
     """Search the fiber optics field operations knowledge base.
 
@@ -148,8 +196,8 @@ async def knowledge_base_search(query: str, top: int = 5) -> str:
     Returns:
         JSON string with search results including document name and content.
     """
-    if not _SEARCH_API_KEY:
-        return json.dumps({"error": "AZURE_SEARCH_API_KEY not configured"})
+    if not _SEARCH_ENDPOINT:
+        return json.dumps({"error": "AZURE_SEARCH_ENDPOINT not configured"})
 
     search_url = f"{_SEARCH_ENDPOINT}/indexes/{_SEARCH_INDEX}/docs/search?api-version=2024-07-01"
     payload = {
@@ -160,12 +208,14 @@ async def knowledge_base_search(query: str, top: int = 5) -> str:
         "select": "content,metadata_storage_name",
     }
 
+    if _SEARCH_API_KEY:
+        headers = {"api-key": _SEARCH_API_KEY, "Content-Type": "application/json"}
+    else:
+        token = _get_credential().get_token(_SEARCH_TOKEN_SCOPE).token
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            search_url,
-            json=payload,
-            headers={"api-key": _SEARCH_API_KEY, "Content-Type": "application/json"},
-        )
+        resp = await client.post(search_url, json=payload, headers=headers)
         resp.raise_for_status()
         data = resp.json()
 
@@ -180,9 +230,12 @@ async def knowledge_base_search(query: str, top: int = 5) -> str:
 
 
 def _create_kb_search_tool() -> FunctionTool | None:
-    """Create the knowledge base search tool if search is configured."""
-    if not _SEARCH_API_KEY:
-        logger.warning("AZURE_SEARCH_API_KEY not set — running without KB search")
+    """Create the knowledge base search tool if search is configured.
+
+    Works with either AZURE_SEARCH_API_KEY (key auth) or az login (DefaultAzureCredential).
+    """
+    if not _SEARCH_ENDPOINT:
+        logger.warning("AZURE_SEARCH_ENDPOINT not set — running without KB search")
         return None
 
     return FunctionTool(
@@ -416,7 +469,7 @@ class _LoggingCUWrapper(ContextProvider):
             logger.debug("[CU] no new messages injected into context")
 
 
-def create_agent(cu_mode: str = "none") -> tuple[Agent, list]:
+def create_agent(cu_mode: str = "none", foundry_iq_mode: str | None = None) -> tuple[Agent, list]:
     """Create the agent with Foundry client and Toolbox MCP connection.
 
     When TOOLBOX_MCP_URL is set, all tools are accessed via the single
@@ -427,6 +480,11 @@ def create_agent(cu_mode: str = "none") -> tuple[Agent, list]:
       "none"       — no CU provider
       "basic"      — prebuilt-layout (general document understanding)
       "work_order" — cu_demo_work_order custom analyzer
+
+    foundry_iq_mode selects the Foundry IQ knowledge base ingestion demo:
+      None        — use default Toolbox KB (or local search fallback)
+      "minimal"   — standard text extraction KB (contentExtractionMode: minimal)
+      "standard"  — Azure Content Understanding KB (contentExtractionMode: standard)
     """
     credential = _get_credential()
 
@@ -448,6 +506,16 @@ def create_agent(cu_mode: str = "none") -> tuple[Agent, list]:
         kb_tool = _create_kb_search_tool()
         if kb_tool:
             tools.append(kb_tool)
+
+    # Foundry IQ CU demo: add the mode-specific KB MCP alongside existing tools.
+    # The KB contains indexed field documents (OTDR reports, etc.) — the agent
+    # uses live inventory/work-order APIs for operational data AND the KB for
+    # document-based queries, which is the realistic production pattern.
+    if foundry_iq_mode in ("minimal", "standard"):
+        iq_mcp = _create_foundry_iq_mcp(credential, foundry_iq_mode)
+        if iq_mcp:
+            tools.append(iq_mcp)
+            logger.info("Foundry IQ CU demo KB added: mode=%s", foundry_iq_mode)
 
     # Context providers
     context_providers = []
@@ -499,6 +567,7 @@ async def run_agent(
     session: dict,
     attachments: list[dict] | None = None,
     cu_mode: str = "none",
+    foundry_iq_mode: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Run the agent and yield streaming events.
@@ -534,7 +603,7 @@ async def run_agent(
                 ),
             }
 
-    agent, tools = create_agent(cu_mode=cu_mode)
+    agent, tools = create_agent(cu_mode=cu_mode, foundry_iq_mode=foundry_iq_mode)
 
     agent_session = session.get("agent_session")
     if not agent_session:

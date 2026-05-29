@@ -1,4 +1,5 @@
 export type CuMode = "none" | "basic" | "work_order";
+export type FoundryIqMode = "minimal" | "standard";
 
 export interface FileAttachment {
   name: string;
@@ -38,9 +39,13 @@ export async function sendMessage(
   sessionId: string,
   callbacks: StreamCallbacks,
   attachments?: FileAttachment[],
-  cuMode: CuMode = "none"
+  cuMode: CuMode = "none",
+  foundryIqMode?: FoundryIqMode
 ): Promise<void> {
   const body: Record<string, unknown> = { message, session_id: sessionId, cu_mode: cuMode };
+  if (foundryIqMode) {
+    body.foundry_iq_mode = foundryIqMode;
+  }
   if (attachments && attachments.length > 0) {
     body.attachments = attachments.map((a) => ({
       name: a.name,
@@ -137,14 +142,15 @@ export async function resetSession(sessionId: string): Promise<void> {
 export interface Features {
   content_understanding: boolean;
   cu_modes: CuMode[];
+  foundry_iq_cu_demo: boolean;
 }
 
 export async function fetchFeatures(): Promise<Features> {
   try {
     const response = await fetch("/api/features");
-    if (!response.ok) return { content_understanding: false, cu_modes: ["none"] };
+    if (!response.ok) return { content_understanding: false, cu_modes: ["none"], foundry_iq_cu_demo: false };
     return (await response.json()) as Features;
   } catch {
-    return { content_understanding: false, cu_modes: ["none"] };
+    return { content_understanding: false, cu_modes: ["none"], foundry_iq_cu_demo: false };
   }
 }
