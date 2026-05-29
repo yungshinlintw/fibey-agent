@@ -12,6 +12,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Ensure fibey.agent logs are visible regardless of uvicorn's log config.
+# Set LOG_LEVEL=DEBUG in .env for full CU result content; INFO for summaries.
+_log_level = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+_agent_logger = logging.getLogger("fibey.agent")
+_agent_logger.setLevel(_log_level)
+if not _agent_logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)-8s %(name)s: %(message)s"))
+    _agent_logger.addHandler(_handler)
+    _agent_logger.propagate = False
+
 logger = logging.getLogger(__name__)
 
 # Content Understanding feature flag

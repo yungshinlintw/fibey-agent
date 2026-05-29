@@ -227,7 +227,7 @@ export default function ActivitySidebar({ activities, isStreaming, onClear, enab
             {(
               [
                 { mode: "none" as CuMode, label: "None", icon: "block", desc: "No content understanding" },
-                { mode: "basic" as CuMode, label: "Basic CU", icon: "description", desc: "prebuilt-layout extraction" },
+                { mode: "basic" as CuMode, label: "Parse: prebuilt-layout", icon: "description", desc: "Content Understanding" },
                 { mode: "work_order" as CuMode, label: "Classify & Analyze Work Order", icon: "assignment_turned_in", desc: "cu_demo_work_order analyzer" },
               ] as const
             ).map(({ mode, label, icon, desc }) => {
