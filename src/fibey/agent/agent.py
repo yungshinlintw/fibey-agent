@@ -56,7 +56,7 @@ _CU_ENDPOINT = os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT", "")
 def _load_system_prompt() -> str:
     """Load the system prompt from markdown file."""
     if SYSTEM_PROMPT_PATH.exists():
-        return SYSTEM_PROMPT_PATH.read_text()
+        return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
     return "You are Fibey, a helpful AI assistant."
 
 

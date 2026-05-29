@@ -9,7 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 DATA_PATH = Path(__file__).parent / "data" / "inventory.json"
-INVENTORY: list[dict[str, Any]] = json.loads(DATA_PATH.read_text())
+INVENTORY: list[dict[str, Any]] = json.loads(DATA_PATH.read_text(encoding="utf-8"))
 PARTS_BY_ID = {part["id"]: part for part in INVENTORY}
 
 server = FastMCP(

@@ -73,7 +73,7 @@ class ToolboxAuth(httpx.Auth):
 
 def _load_system_prompt() -> str:
     if SYSTEM_PROMPT_PATH.exists():
-        return SYSTEM_PROMPT_PATH.read_text()
+        return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
     return "You are Fibey, a helpful AI assistant for fiber optics field operations."
 
 

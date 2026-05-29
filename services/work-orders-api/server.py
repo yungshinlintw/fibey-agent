@@ -60,7 +60,7 @@ class WorkOrderUpdate(BaseModel):
 
 
 def load_work_orders() -> list[WorkOrder]:
-    raw_orders = json.loads(DATA_PATH.read_text())
+    raw_orders = json.loads(DATA_PATH.read_text(encoding="utf-8"))
     return [WorkOrder.model_validate(order) for order in raw_orders]
 
 
