@@ -1,0 +1,22 @@
+{
+  "analyzerId": "cu_demo_classify_and_analyze",
+  "baseAnalyzerId": "prebuilt-document",
+  "description": "Fibey demo classifier: routes fiber ops work orders to the work order field extractor and all other document types to prebuilt-layout for general extraction.",
+  "config": {
+    "enableSegment": false,
+    "contentCategories": {
+      "work_order": {
+        "description": "A field operations work order document issued to a technician for a specific job. Contains a job title, assigned technician name in a sign-off table, job site address, due date, parts list with part IDs (e.g. FIB-XXX), status (open/in_progress), and priority (critical/high/medium/low). Typically 1-2 pages with a professional header, checklist, and signature block.",
+        "analyzerId": "cu_demo_work_order"
+      },
+      "other": {
+        "description": "Any document that is NOT a field operations work order. This includes training certificates, inspection reports, invoices, packing slips, incident reports, safety manuals, NOC tickets, or any general business document.",
+        "analyzerId": "prebuilt-layout"
+      }
+    }
+  },
+  "models": {
+    "completion": "gpt-4.1",
+    "embedding": "text-embedding-3-large"
+  }
+}

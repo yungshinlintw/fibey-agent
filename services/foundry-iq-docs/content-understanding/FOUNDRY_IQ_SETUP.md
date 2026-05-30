@@ -14,7 +14,7 @@ This guide sets up the **Foundry IQ Ingestion Mode demo** for Fibey Field Ops. T
 After switching the **Foundry IQ Ingestion** mode in the sidebar:
 
 **Primary demo question (OTDR report):**
-> *"What is the ORL reading at 1310nm for fiber F-03?"*
+> *"Check the KB — what is the ORL reading at 1310nm for fiber F-03?"*
 
 | Mode | Expected answer | Why |
 |------|----------------|-----|

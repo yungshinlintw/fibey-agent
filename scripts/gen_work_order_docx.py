@@ -75,14 +75,13 @@ def main():
     doc.add_paragraph()
 
     # ── Header metadata ─────────────────────────────────────────────────────────
-    # Demo intent: "Assigned Field Technician: John Smith" explicitly labels the WRONG person.
-    # The LLM reads this label and confidently returns John Smith (WRONG) in Basic CU mode.
-    # The actual technician (J. Martinez) is only in the Dispatch Log as "Route → J. Martinez".
-    # The custom analyzer ignores the header label and looks at Route → instead (CORRECT).
-    # "On-Site Technician" is a separate field (can be empty) — the tech the dispatcher meets.
+    # "Field Technician" = the on-site contact the dispatched tech will meet (John Smith).
+    # The LLM reads this label and returns John Smith as the assigned tech (WRONG) in Basic CU.
+    # The actual dispatched technician (J. Martinez) is only in the Dispatch Log as "Route → J. Martinez".
+    # The custom analyzer ignores the header and extracts from the Dispatch Log (CORRECT).
     tbl = doc.add_table(rows=2, cols=4)
     tbl.style = "Table Grid"
-    for i, header in enumerate(["Assigned Field Technician", "On-Site Technician", "Location", "Created"]):
+    for i, header in enumerate(["Field Technician", "On-Site Technician", "Location", "Created"]):
         c = tbl.rows[0].cells[i]
         c.text = header
         c.paragraphs[0].runs[0].bold = True

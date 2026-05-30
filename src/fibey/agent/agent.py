@@ -29,13 +29,11 @@ from agent_framework import (
     AgentResponseUpdate,
     AgentSession,
     Content,
-    ContextProvider,
     FileSkillsSource,
     FunctionTool,
     MCPStreamableHTTPTool,
     Message,
     ResponseStream,
-    SessionContext,
     SkillsProvider,
 )
 from agent_framework.foundry import FoundryChatClient
@@ -49,7 +47,8 @@ _TOKEN_SCOPE = "https://ai.azure.com/.default"
 # Azure AI Search configuration for direct KB queries
 _SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT", "")
 _SEARCH_INDEX = os.getenv("AZURE_SEARCH_INDEX", "foundry-iq-docs-index")
-_SEARCH_API_KEY = os.getenv("AZURE_SEARCH_API_KEY", "")
+# Accept either key; admin key also works for read operations
+_SEARCH_API_KEY = os.getenv("AZURE_SEARCH_API_KEY", "") or os.getenv("AZURE_SEARCH_ADMIN_KEY", "")
 
 # Content Understanding (optional)
 _CU_ENDPOINT = os.getenv("AZURE_CONTENTUNDERSTANDING_ENDPOINT", "")
@@ -158,19 +157,17 @@ def _create_foundry_iq_mcp(credential, foundry_iq_mode: str) -> MCPStreamableHTT
 
     logger.info("Foundry IQ KB MCP (%s): %s", foundry_iq_mode, url)
 
-    # Azure AI Search MCP uses the Search API key or a Search-scoped bearer token.
-    # Do NOT use the Foundry/AI services token or api-version=v1 (those are Toolbox-specific).
+    # header_provider only injects on call_tool(), not on connect()/initialize.
+    # Bake auth into the AsyncClient's default_headers so every request is authenticated,
+    # including the initial MCP handshake.
     if _SEARCH_API_KEY:
-        auth: httpx.Auth = _ToolboxApiKeyAuth(_SEARCH_API_KEY)
+        default_headers = {"api-key": _SEARCH_API_KEY}
     else:
-        class _SearchAuth(httpx.Auth):
-            def auth_flow(self, request):
-                request.headers["Authorization"] = f"Bearer {credential.get_token(_SEARCH_TOKEN_SCOPE).token}"
-                yield request
-        auth = _SearchAuth()
+        token = credential.get_token(_SEARCH_TOKEN_SCOPE).token
+        default_headers = {"Authorization": f"Bearer {token}"}
 
     auth_http_client = httpx.AsyncClient(
-        auth=auth,
+        headers=default_headers,
         timeout=120.0,
     )
 
@@ -408,67 +405,6 @@ _CU_ANALYZER_IDS = {
 }
 
 
-class _LoggingCUWrapper(ContextProvider):
-    """Thin wrapper around ContentUnderstandingContextProvider that logs
-    what the CU provider injects into context before each LLM call."""
-
-    def __init__(self, inner: Any) -> None:
-        super().__init__(source_id=getattr(inner, "source_id", "azure_contentunderstanding"))
-        self._inner = inner
-
-    async def before_run(
-        self,
-        *,
-        agent: Any,
-        session: AgentSession,
-        context: SessionContext,
-        state: dict[str, Any],
-    ) -> None:
-        logger.debug("[CU] before_run: state keys=%s", list(state.keys()))
-
-        # snapshot message count before CU runs
-        msgs_before = list(context.messages) if hasattr(context, "messages") else []
-
-        await self._inner.before_run(
-            agent=agent,
-            session=session,
-            context=context,
-            state=state,
-        )
-
-        # log any documents tracked in state
-        documents = state.get("documents", {})
-        if documents:
-            for key, entry in documents.items():
-                status = entry.get("status") if isinstance(entry, dict) else getattr(entry, "status", "?")
-                analyzer = entry.get("analyzer_id") if isinstance(entry, dict) else getattr(entry, "analyzer_id", "?")
-                duration = entry.get("analysis_duration_s") if isinstance(entry, dict) else getattr(entry, "analysis_duration_s", None)
-                result = entry.get("result") if isinstance(entry, dict) else getattr(entry, "result", None)
-                error = entry.get("error") if isinstance(entry, dict) else getattr(entry, "error", None)
-                logger.info(
-                    "[CU] document='%s' status=%s analyzer=%s duration=%ss",
-                    key, status, analyzer, duration,
-                )
-                if error:
-                    logger.warning("[CU] document='%s' error: %s", key, error)
-                if result:
-                    result_str = json.dumps(result) if not isinstance(result, str) else result
-                    # Log a preview (first 500 chars) to avoid flooding logs
-                    logger.info("[CU] document='%s' result preview (500 chars): %s", key, result_str[:500])
-                    logger.debug("[CU] document='%s' full result: %s", key, result_str)
-
-        # log any new messages CU injected into context
-        msgs_after = list(context.messages) if hasattr(context, "messages") else []
-        new_msgs = msgs_after[len(msgs_before):]
-        if new_msgs:
-            logger.info("[CU] injected %d message(s) into context:", len(new_msgs))
-            for i, msg in enumerate(new_msgs):
-                content_preview = str(msg)[:300]
-                logger.info("[CU]   [%d] %s", i, content_preview)
-        else:
-            logger.debug("[CU] no new messages injected into context")
-
-
 def create_agent(cu_mode: str = "none", foundry_iq_mode: str | None = None) -> tuple[Agent, list]:
     """Create the agent with Foundry client and Toolbox MCP connection.
 
@@ -530,26 +466,15 @@ def create_agent(cu_mode: str = "none", foundry_iq_mode: str | None = None) -> t
     analyzer_id = _CU_ANALYZER_IDS.get(cu_mode)
     if analyzer_id and _CU_ENDPOINT:
         from agent_framework.foundry import ContentUnderstandingContextProvider
-        # CU uses the async SDK client, so it needs an AsyncTokenCredential.
-        # The sync AzureCliCredential used elsewhere isn't compatible and
-        # causes CU analysis to silently no-op.
-        from azure.identity.aio import (
-            AzureCliCredential as AsyncAzureCliCredential,
-            DefaultAzureCredential as AsyncDefaultAzureCredential,
-        )
-        try:
-            async_credential: Any = AsyncAzureCliCredential()
-        except Exception:
-            async_credential = AsyncDefaultAzureCredential()
         cu_provider = ContentUnderstandingContextProvider(
             endpoint=_CU_ENDPOINT,
-            credential=async_credential,
+            credential=credential,
             analyzer_id=analyzer_id,
             output_sections=["markdown", "fields"],
             max_wait=None,  # Wait until analysis completes (no background deferral)
         )
-        context_providers.append(_LoggingCUWrapper(cu_provider))
-        logger.info("[CU] Content Understanding enabled: mode=%s analyzer=%s endpoint=%s", cu_mode, analyzer_id, _CU_ENDPOINT)
+        context_providers.append(cu_provider)
+        logger.info("Content Understanding enabled: mode=%s analyzer=%s", cu_mode, analyzer_id)
 
     agent = Agent(
         client=client,

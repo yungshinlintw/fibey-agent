@@ -64,34 +64,6 @@ The Fibey agent can run in three deployment modes:
 
 ## Quick start
 
-### PowerShell on Windows
-
-Run these commands from inside the cloned repo folder (e.g. `cd C:\src\fibery-agent-v2`):
-
-```powershell
-# 1) Install root and UI dependencies
-uv sync
-Set-Location .\ui; npm install; Set-Location ..
-
-# 2) Create your local environment file if it does not exist
-if (-not (Test-Path .\.env)) { Copy-Item .\.env.example .\.env }
-
-# 3) Start the gateway and UI as tabs in the same Windows Terminal window
-$r = $PWD.Path
-wt new-tab --title "Gateway" -d "$r" powershell -NoExit -Command "uv run uvicorn fibey.gateway.api_server:app --reload --port 8080" `; new-tab --title "UI" -d "$r\ui" powershell -NoExit -Command "npm run dev"
-```
-
-If `TOOLBOX_MCP_URL` is set in `.env`, the app uses the remote Foundry Toolbox. If you leave it empty and want to run local tool services, add them as extra tabs too (still from the repo root):
-
-```powershell
-$r = $PWD.Path
-wt new-tab --title "Inventory MCP" -d "$r\services\inventory-mcp" cmd /k "uv sync && uv run python server.py" `; new-tab --title "Work Orders API" -d "$r\services\work-orders-api" cmd /k "uv sync && uv run python server.py" `; new-tab --title "Status Dashboard" -d "$r\services\status-dashboard\public" powershell -NoExit -Command "python -m http.server 8003"
-```
-
-Open the UI at `http://localhost:5173`. Stop each dev server with `Ctrl+C` in its PowerShell window.
-
-### Bash
-
 ```bash
 # 1) Install root and UI dependencies
 ./scripts/setup.sh
@@ -120,12 +92,6 @@ Copy `.env.example` to `.env` and fill in your values:
 
 ```bash
 cp .env.example .env
-```
-
-PowerShell equivalent:
-
-```powershell
-Copy-Item .\.env.example .\.env
 ```
 
 | Variable | Description |

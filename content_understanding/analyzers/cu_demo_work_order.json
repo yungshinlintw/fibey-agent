@@ -1,0 +1,114 @@
+{
+	"analyzerId": "cu_demo_work_order",
+	"description": "Fibey field ops work order extractor. Extracts structured fields matching the WorkOrderCreate API schema.",
+	"createdAt": "2026-05-29T15:39:42Z",
+	"lastModifiedAt": "2026-05-29T15:39:42Z",
+	"baseAnalyzerId": "prebuilt-document",
+	"config": {
+		"returnDetails": false,
+		"enableOcr": true,
+		"enableLayout": true,
+		"enableFormula": true,
+		"enableFigureDescription": false,
+		"enableFigureAnalysis": false,
+		"chartFormat": "chartjs",
+		"tableFormat": "html",
+		"enableSegment": false,
+		"omitContent": false,
+		"segmentPerPage": false,
+		"annotationFormat": "markdown"
+	},
+	"warnings": [],
+	"status": "ready",
+	"processingLocation": "geography",
+	"supportedModels": {
+		"completion": [
+			"gpt-4o",
+			"gpt-4o-mini",
+			"gpt-4.1",
+			"gpt-4.1-mini",
+			"gpt-4.1-nano",
+			"gpt-5.2"
+		],
+		"embedding": [
+			"text-embedding-3-small",
+			"text-embedding-3-large",
+			"text-embedding-ada-002"
+		]
+	},
+	"models": {
+		"completion": "gpt-4.1",
+		"embedding": "text-embedding-3-large"
+	},
+	"fieldSchema": {
+		"name": "work_order_schema",
+		"description": "Schema for extracting structured work order data from field operations documents. Fields match the Fibey Work Orders API (WorkOrderCreate model).",
+		"fields": {
+			"title": {
+				"type": "string",
+				"method": "extract",
+				"description": "The work order title as shown in the document header."
+			},
+			"description": {
+				"type": "string",
+				"method": "generate",
+				"description": "A full description of the job to be performed, drawn from the 'Job Description' or 'Details' section of the document."
+			},
+			"status": {
+				"type": "string",
+				"method": "classify",
+				"description": "Current status of the work order.",
+				"enum": [
+					"open",
+					"in_progress",
+					"completed",
+					"cancelled"
+				]
+			},
+			"priority": {
+				"type": "string",
+				"method": "classify",
+				"description": "Priority level of the work order.",
+				"enum": [
+					"low",
+					"medium",
+					"high",
+					"critical"
+				]
+			},
+			"assigned_technician": {
+				"type": "string",
+				"method": "extract",
+				"description": "The name of the field technician dispatched and assigned to perform the work. IMPORTANT: Search the entire document for the exact text 'Route →' or 'Route ->'. The assigned technician name appears immediately after this text. Example: 'Route → J. Martinez' means the assigned technician is 'J. Martinez'. This text appears in a Dispatch Log entry — it may be plain text or inside a table cell. You MUST use this as the ONLY authoritative source regardless of any other fields in the document. Do NOT use ANY field labeled 'Field Technician' in the document header — that is the on-site contact the dispatched technician will meet, not the dispatched worker. Do NOT use the Dispatcher name (the person listed before the 'Route →' entry). Do NOT use names from the 'Site Access & Contact' or 'Contact:' sections."
+			},
+			"location": {
+				"type": "string",
+				"method": "extract",
+				"description": "The physical job site address or location identifier."
+			},
+			"due_date": {
+				"type": "string",
+				"method": "generate",
+				"description": "The due date for the work order in ISO 8601 format (YYYY-MM-DDThh:mm:ssZ). Always convert the date to this format. Examples: '5/20/26 5:00pm' → '2026-05-20T17:00:00Z', '2026-05-20 17:00 PDT' → '2026-05-20T17:00:00Z', 'May 20, 2026' → '2026-05-20T00:00:00Z'. If no time is given, use T00:00:00Z. Never return null for this field."
+			},
+			"parts_needed": {
+				"type": "array",
+				"method": "generate",
+				"description": "List of parts and materials required. Each item has: 'part_id' (string, format FIB-XXX) and 'quantity' (integer >= 1).",
+				"items": {
+					"type": "object",
+					"properties": {
+						"part_id": {
+							"type": "string",
+							"description": "Part identifier in format FIB-XXX (e.g. FIB-003)."
+						},
+						"quantity": {
+							"type": "number",
+							"description": "Number of units required, must be >= 1."
+						}
+					}
+				}
+			}
+		}
+	}
+}

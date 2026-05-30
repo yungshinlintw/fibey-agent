@@ -81,9 +81,9 @@ fi
 echo "Reading azd / az outputs..."
 
 STORAGE_ACCOUNT=$(azd env get-value storageAccountName 2>/dev/null || \
-  az storage account list -g "${AZURE_RESOURCE_GROUP}" --query "[0].name" -o tsv)
+  az storage account list -g "${AZURE_RESOURCE_GROUP}" --query "[0].name" -o tsv | tr -d '\r')
 SEARCH_SERVICE=$(azd env get-value searchServiceName 2>/dev/null || \
-  az search service list -g "${AZURE_RESOURCE_GROUP}" --query "[0].name" -o tsv)
+  az search service list -g "${AZURE_RESOURCE_GROUP}" --query "[0].name" -o tsv | tr -d '\r')
 
 if [ -z "$STORAGE_ACCOUNT" ] || [ -z "$SEARCH_SERVICE" ]; then
   echo "ERROR: Could not resolve storage account or search service."
@@ -93,22 +93,22 @@ fi
 SEARCH_ENDPOINT="https://${SEARCH_SERVICE}.search.windows.net"
 
 STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
-  --name "$STORAGE_ACCOUNT" --query connectionString -o tsv)
+  --name "$STORAGE_ACCOUNT" --query connectionString -o tsv | tr -d '\r')
 
 SEARCH_ADMIN_KEY="${AZURE_SEARCH_ADMIN_KEY:-}"
 if [ -z "$SEARCH_ADMIN_KEY" ]; then
   SEARCH_ADMIN_KEY=$(az search admin-key show \
     --service-name "$SEARCH_SERVICE" \
     --resource-group "${AZURE_RESOURCE_GROUP}" \
-    --query primaryKey -o tsv)
+    --query primaryKey -o tsv | tr -d '\r')
 fi
 
 SEARCH_RESOURCE_ID=$(az search service show \
   --name "$SEARCH_SERVICE" \
   --resource-group "${AZURE_RESOURCE_GROUP}" \
-  --query id -o tsv)
+  --query id -o tsv | tr -d '\r')
 
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+SUBSCRIPTION_ID=$(az account show --query id -o tsv | tr -d '\r')
 
 # Resolve Foundry project — supports both resource generations:
 #   New: Microsoft.CognitiveServices/accounts/{account}/projects/{project}
@@ -157,7 +157,7 @@ echo "Foundry resource provider: $FOUNDRY_RESOURCE_PROVIDER"
 FOUNDRY_MI_PRINCIPAL_ID=$(az resource show \
   --ids "$FOUNDRY_PROJECT_RESOURCE_ID" \
   --api-version "$FOUNDRY_CONNECTION_API_VERSION" \
-  --query "identity.principalId" -o tsv 2>/dev/null || echo "")
+  --query "identity.principalId" -o tsv 2>/dev/null | tr -d '\r' || echo "")
 
 if [ -z "$FOUNDRY_MI_PRINCIPAL_ID" ]; then
   # Try the account-level identity
@@ -165,7 +165,7 @@ if [ -z "$FOUNDRY_MI_PRINCIPAL_ID" ]; then
   FOUNDRY_MI_PRINCIPAL_ID=$(az resource show \
     --ids "${_ACCOUNT_ID}" \
     --api-version "$FOUNDRY_CONNECTION_API_VERSION" \
-    --query "identity.principalId" -o tsv 2>/dev/null || echo "")
+    --query "identity.principalId" -o tsv 2>/dev/null | tr -d '\r' || echo "")
 fi
 
 if [ -z "$FOUNDRY_MI_PRINCIPAL_ID" ]; then
@@ -173,12 +173,12 @@ if [ -z "$FOUNDRY_MI_PRINCIPAL_ID" ]; then
   FOUNDRY_MI_PRINCIPAL_ID=$(az cognitiveservices account show \
     --name "$FOUNDRY_ACCOUNT_NAME" \
     --resource-group "$FOUNDRY_RESOURCE_GROUP" \
-    --query "identity.principalId" -o tsv 2>/dev/null || echo "")
+    --query "identity.principalId" -o tsv 2>/dev/null | tr -d '\r' || echo "")
 fi
 
 MANAGEMENT_TOKEN=$(az account get-access-token \
   --scope https://management.azure.com/.default \
-  --query accessToken -o tsv)
+  --query accessToken -o tsv | tr -d '\r')
 
 # AI Services for standard mode (optional — can be same as Foundry AI endpoint)
 CU_ENDPOINT="${AZURE_CONTENTUNDERSTANDING_ENDPOINT:-}"

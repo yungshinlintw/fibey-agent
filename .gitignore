@@ -443,4 +443,6 @@ dist/
 
 # Local-only demo files (not committed)
 scripts/gen_work_order_docx.py
+scripts/dev-restart.sh
+scripts/dev-stop.sh
 # content_understanding/demo_files/*.docx  # tracked — needed for demo

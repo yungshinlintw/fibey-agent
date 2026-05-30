@@ -140,15 +140,16 @@ def header_table(wo, styles):
     ]))
 
     # Metadata block — 2 rows × 4 columns.
-    # Row 0: "Assigned Field Technician" → John Smith  |  "On-Site Technician" → — (empty)
-    # Row 1: "Location" → address                      |  "Created" → date
+    # Row 0: "Field Technician" → John Smith (on-site contact)  |  "On-Site Technician" → — (empty)
+    # Row 1: "Location" → address                               |  "Created" → date
     #
-    # Demo intent: LLM reads "Assigned Field Technician: John Smith" explicitly and returns
-    # John Smith (WRONG). The actual dispatched tech (J. Martinez) is ONLY in the Dispatch Log
-    # as "Route → J. Martinez". The custom analyzer ignores this header and extracts from there.
+    # Demo intent: LLM reads "Field Technician: John Smith" and confidently returns John Smith
+    # as the assigned technician (WRONG). The actual dispatched tech (J. Martinez) is ONLY in
+    # the Dispatch Log as "Route → J. Martinez". The custom analyzer ignores this header and
+    # extracts from the Dispatch Log instead (CORRECT).
     meta_data = [
         [
-            Paragraph("<b>Assigned Field Technician</b>", styles["FieldLabel"]),
+            Paragraph("<b>Field Technician</b>", styles["FieldLabel"]),
             Paragraph(wo["site_contact"], styles["FieldValue"]),
             Paragraph("<b>On-Site Technician</b>", styles["FieldLabel"]),
             Paragraph("—", styles["FieldValue"]),
