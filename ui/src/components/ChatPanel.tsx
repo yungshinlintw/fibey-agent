@@ -33,7 +33,7 @@ export default function ChatPanel({ messages, isStreaming, onSend, enableAttachm
               </p>
             </div>
             <div className="mt-8 w-full max-w-2xl">
-              <PromptSuggestions onSelect={onSend} />
+              <PromptSuggestions onSelect={(prompt, attachments) => onSend(prompt, attachments)} />
             </div>
           </div>
         ) : (

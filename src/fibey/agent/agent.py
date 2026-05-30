@@ -521,10 +521,10 @@ async def run_agent(
             yield {
                 "type": "warning",
                 "content": (
-                    f"⚠️ **OpenAI cannot read {names}.** "
-                    f"OpenAI only supports images and PDF natively — "
+                    f"⚠️ **Azure OpenAI cannot read {names}.** "
+                    f"Azure OpenAI only supports images and PDF natively — "
                     f"**.{ext} files are silently ignored.** "
-                    f"See the response below, then switch to **Basic CU** or **Classify & Analyze** to unlock document understanding."
+                    f"See the response below, then switch to **Parse: prebuilt-layout** or **Classify & Analyze** to unlock document understanding."
                 ),
             }
 
@@ -738,14 +738,7 @@ async def run_agent(
             match = _re.search(r"'message':\s*['\"](.+?)['\"]", err_str)
             if match:
                 clean = match.group(1)
-                yield {
-                    "type": "delta",
-                    "content": (
-                        f"❌ **OpenAI rejected the request:** {clean}\n\n"
-                        f"This confirms OpenAI cannot process this file type directly. "
-                        f"Switch to **Basic CU** or **Classify & Analyze Work Order** to analyze the document with Content Understanding."
-                    ),
-                }
+                yield {"type": "delta", "content": f"❌ {clean}"}
             else:
                 yield {"type": "delta", "content": f"❌ Agent error: {err_str}"}
 
