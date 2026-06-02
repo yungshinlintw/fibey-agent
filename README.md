@@ -2,6 +2,8 @@
 
 Fibey Field Ops is a demo for **fiber optics field operations** built with **Azure AI Foundry Hosted Agents** and the **Foundry Toolbox**. The agent helps field technicians quickly check parts inventory, manage work orders, find procedures and safety guidance, and verify network/service status.
 
+This sample also includes an **optional** Content Understanding (CU) extension to show how CU can improve agent quality when enabled. At runtime, CU adds file upload support in the chat flow so documents (for example PDF/image/Word) can be parsed and injected as structured context for Agent Framework orchestration. At indexing time, the Foundry IQ demo supports both `minimal` and `standard` ingestion paths; the `standard` path uses CU-enhanced extraction (especially for OCR and table/field structure), which can improve indexed content fidelity and downstream retrieval quality.
+
 ## Architecture
 
 The Fibey agent can run in three deployment modes:
@@ -96,18 +98,33 @@ cp .env.example .env
 
 | Variable | Description |
 |----------|-------------|
-| `AGENT_MODE` | `local` (default, uses Foundry Toolbox), `local-direct` (bypass Toolbox, connect to localhost services), `hosted`, or `containerapp` |
+| `AGENT_MODE` | `local` (default, uses Foundry Toolbox), `hosted`, or `containerapp` |
 | `FOUNDRY_PROJECT_ENDPOINT` | Foundry project endpoint |
 | `FOUNDRY_MODEL` | Model deployment name (e.g., `gpt-4`) |
 | `HOSTED_AGENT_NAME` | Hosted agent name (hosted mode only) |
 | `CONTAINERAPP_AGENT_URL` | Agent service URL (containerapp mode only) |
 | `TOOLBOX_MCP_URL` | Foundry Toolbox MCP endpoint (without api-version - automatically appended) |
-| `INVENTORY_MCP_URL` | *(Optional)* Override for local-direct mode inventory MCP. Default: `http://localhost:8001` |
-| `WORK_ORDERS_API_URL` | *(Optional)* Override for local-direct mode work orders API. Default: `http://localhost:8002` |
-| `AZURE_CONTENTUNDERSTANDING_ENDPOINT` | *(Optional, additive)* Azure AI Foundry endpoint for Content Understanding. When set, enables the "+" file attachment button in the UI for uploading PDFs and images. Files are analyzed via CU and work orders can be auto-extracted. Example: `https://your-foundry.services.ai.azure.com/` |
+
+For optional Content Understanding settings, see the CU table below; if you are improving this sample locally, see the local-direct table that follows.
+
+### Content Understanding (CU) And CU Demo
+
+| Variable | Description |
+|----------|-------------|
+| `AZURE_CONTENTUNDERSTANDING_ENDPOINT` | *(Optional, additive)* Azure AI Foundry endpoint for Content Understanding. When set, enables the "+" file attachment button in the UI for uploading PDFs, images, and Word documents. Files are analyzed via CU and work orders can be auto-extracted. Example: `https://your-foundry.services.ai.azure.com/` |
 | `FOUNDRY_IQ_MINIMAL_MCP_URL` | *(Optional, additive)* MCP URL for the Foundry IQ KB ingested with minimal text extraction. Used by the CU ingestion comparison demo. Requires the standard URL below to also be set. |
 | `FOUNDRY_IQ_STANDARD_MCP_URL` | *(Optional, additive)* MCP URL for the Foundry IQ KB ingested with Azure Content Understanding (standard mode). |
+| `AZURE_CONTENTUNDERSTANDING_KEY` | *(Optional)* API key used by standard mode indexing when needed. |
 | `CU_VERBOSE_LOGGING` | *(Optional)* Set to `1` to enable verbose `[CU]` info-level traces. Default is debug-only. |
+
+### Local-Direct Mode (Dev-Only): Local Service Endpoints
+
+`AGENT_MODE` also supports `local-direct` for development-only usage. This mode bypasses Foundry Toolbox and connects directly to local services. 
+
+| Variable | Description |
+|----------|-------------|
+| `INVENTORY_MCP_URL` | *(Optional)* Override for local-direct mode inventory MCP. Default: `http://localhost:8001` |
+| `WORK_ORDERS_API_URL` | *(Optional)* Override for local-direct mode work orders API. Default: `http://localhost:8002` |
 
 **Important:** The `TOOLBOX_MCP_URL` should NOT include the `api-version` query parameter. The agent code automatically appends `?api-version=v1` to the URL. This is a critical requirement discovered during integration - the Toolbox MCP endpoint requires `api-version=v1` (not date-based versions like `2024-08-01-preview`).
 
